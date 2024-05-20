@@ -1,99 +1,64 @@
-window.onload = function() {
-    cv['onRuntimeInitialized'] = () => {
-        console.log('OpenCV.js is ready.');
-    };
+async function loadImage(imgElement) {
+    const tensor = tf.browser.fromPixels(imgElement).toFloat();
+    return tensor.expandDims(0).div(tf.scalar(255.0));
+}
+
+async function predictAndDisplay(imgElement, model) {
+    const tensor = await loadImage(imgElement);
+    const predictions = await model.executeAsync(tensor);
+    
+    // Processing and displaying predictions
+    // This part will depend on the model and how the predictions are formatted
+    // Here we assume the predictions give bounding boxes for each stone
+
+    const processedCanvas = document.getElementById('processedImage');
+    const ctx = processedCanvas.getContext('2d');
+    ctx.drawImage(imgElement, 0, 0, processedCanvas.width, processedCanvas.height);
+
+    // Drawing bounding boxes on the image
+    predictions.array().then(predictions => {
+        predictions.forEach(pred => {
+            const [y1, x1, y2, x2] = pred;  // Assuming the format is [y1, x1, y2, x2]
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x1 * processedCanvas.width, y1 * processedCanvas.height, 
+                           (x2 - x1) * processedCanvas.width, (y2 - y1) * processedCanvas.height);
+        });
+    });
+
+    // Clear the previous container content
+    document.getElementById('gridContainer').innerHTML = '';
+
+    // Display each stone separately in the grid container
+    predictions.array().then(predictions => {
+        predictions.forEach((pred, i) => {
+            const [y1, x1, y2, x2] = pred;
+            const width = (x2 - x1) * processedCanvas.width;
+            const height = (y2 - y1) * processedCanvas.height;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 150;
+            canvas.height = 150;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(imgElement, x1 * processedCanvas.width, y1 * processedCanvas.height, width, height, 
+                          0, 0, canvas.width, canvas.height);
+
+            document.getElementById('gridContainer').appendChild(canvas);
+        });
+    });
+}
+
+window.onload = async function() {
+    // Load the pre-trained model (replace with the actual model URL or path)
+    const model = await tf.loadGraphModel('http://localhost:8080/model/model.json');
+    console.log('Model loaded.');
 
     document.getElementById('imageInput').addEventListener('change', function(e) {
         let imgElement = document.createElement('img');
         imgElement.src = URL.createObjectURL(e.target.files[0]);
 
         imgElement.onload = function() {
-            let src = cv.imread(imgElement);
-            let gray = new cv.Mat();
-            let blurred = new cv.Mat();
-            let edges = new cv.Mat();
-            let contours = new cv.MatVector();
-            let hierarchy = new cv.Mat();
-
-            // Convert to grayscale
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-
-            // Apply Gaussian Blur to reduce noise and improve edge detection
-            cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-
-            // Edge detection
-            cv.Canny(blurred, edges, 50, 150);
-
-            // Find contours
-            cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-            // Draw contours on the original image
-            for (let i = 0; i < contours.size(); i++) {
-                let color = new cv.Scalar(0, 255, 0); // Green color for contours
-                cv.drawContours(src, contours, i, color, 2, cv.LINE_8, hierarchy, 100);
-            }
-
-            // Resize and display the processed mosaic image
-            let dst = new cv.Mat();
-            let dsize = new cv.Size(1200, 1200);
-            cv.resize(src, dst, dsize, 0, 0, cv.INTER_AREA);
-            cv.imshow('processedImage', dst);
-
-            // Clear the previous container content
-            document.getElementById('gridContainer').innerHTML = '';
-
-            // Create an array to hold the bounding boxes
-            let boundingBoxes = [];
-            for (let i = 0; i < contours.size(); i++) {
-                let rect = cv.boundingRect(contours.get(i));
-                boundingBoxes.push(rect);
-            }
-
-            // Sort the bounding boxes by y-coordinate first, then by x-coordinate
-            boundingBoxes.sort((a, b) => {
-                if (a.y === b.y) {
-                    return a.x - b.x;
-                }
-                return a.y - b.y;
-            });
-
-            // Loop through the sorted bounding boxes and crop the stone images
-            boundingBoxes.forEach((rect, i) => {
-                let cropped = src.roi(rect);
-
-                // Resize each cropped image to 150x150
-                let resized = new cv.Mat();
-                let stoneSize = new cv.Size(150, 150);
-                cv.resize(cropped, resized, stoneSize, 0, 0, cv.INTER_AREA);
-
-                // Create a canvas element for the resized image
-                let canvas = document.createElement('canvas');
-                canvas.width = 150;
-                canvas.height = 150;
-                let ctx = canvas.getContext('2d');
-
-                // Convert Mat to ImageData
-                let imgData = new ImageData(new Uint8ClampedArray(resized.data), resized.cols, resized.rows);
-                ctx.putImageData(imgData, 0, 0);
-
-                // Append the canvas to the grid container
-                document.getElementById('gridContainer').appendChild(canvas);
-
-                // Clean up
-                cropped.delete();
-                resized.delete();
-            });
-
-            // Clean up
-            src.delete();
-            gray.delete();
-            blurred.delete();
-            edges.delete();
-            contours.delete();
-            hierarchy.delete();
-            dst.delete();
-
-            console.log('Stone extraction complete.');
+            predictAndDisplay(imgElement, model);
         };
     });
 };
