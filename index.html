@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stone Extraction POC</title>
+    <style>
+        #gridContainer {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 20px;
+        }
+        #processedImage {
+            display: block;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Stone Extraction from Mosaic Images</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <canvas id="processedImage" width="400" height="400"></canvas>
+    <div id="gridContainer"></div>
+    <script src="https://docs.opencv.org/master/opencv.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
